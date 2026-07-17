@@ -1,0 +1,7 @@
+{
+  "versionCode": 133,
+  "versionName": "1.3.3",
+  "apkUrl": "https://github.com/xjfc76/couchToMouth_app/releases/download/v1.3.3/couch2mouth-bridge.apk",
+  "releaseNotes": "Bluetooth printer reliability: auto-reconnect before print/drawer, background health check every 30s, proper socket cleanup",
+  "minAndroidSdk": 26
+}

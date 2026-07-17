@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- For APK updates downloaded to Downloads folder -->
+    <external-path
+        name="downloads"
+        path="Download/" />
+</paths>

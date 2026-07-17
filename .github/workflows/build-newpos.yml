@@ -1,0 +1,53 @@
+name: Build newpos bridge APK
+
+# Standalone repo: builds the newpos flavor of the bridge app
+# (applicationId com.couchtommouth.bridge.newpos) and publishes it as a
+# workflow artifact. Completely isolated from the live app + its update feed.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle (matches the project's wrapper)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.1.0'
+
+      - name: Generate signing keystore
+        # newpos is a brand-new app (no installed base), so a fresh signing key
+        # is fine. Alias/passwords match app/build.gradle.kts signingConfigs.
+        working-directory: app
+        run: |
+          if [ ! -f release.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore release.keystore \
+              -alias c2m-release \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass c2mbridge2024 -keypass c2mbridge2024 \
+              -dname "CN=CouchToMouth, OU=POS, O=CouchToMouth, C=GB"
+          fi
+
+      - name: Build newpos debug APK
+        run: gradle assembleNewposDebug --no-daemon --stacktrace
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: c2m-newpos-apk
+          path: app/build/outputs/apk/newpos/debug/*.apk
+          retention-days: 30

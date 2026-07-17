@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary brand colors - CouchToMouth orange/gold -->
+    <color name="primary">#D4A84B</color>
+    <color name="primary_dark">#B8922F</color>
+    <color name="primary_light">#E5C078</color>
+    <color name="accent">#5C4A1F</color>
+
+    <!-- Background colors -->
+    <color name="background">#FAFAFA</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="card_background">#FFFFFF</color>
+
+    <!-- Text colors -->
+    <color name="text_primary">#212121</color>
+    <color name="text_secondary">#757575</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+
+    <!-- Status colors -->
+    <color name="success">#4CAF50</color>
+    <color name="error">#F44336</color>
+    <color name="warning">#FF9800</color>
+
+    <!-- Printer status -->
+    <color name="printer_connected">#4CAF50</color>
+    <color name="printer_disconnected">#F44336</color>
+</resources>
