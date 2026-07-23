@@ -3,6 +3,12 @@ name: Build newpos bridge APK
 # Standalone repo: builds the newpos flavor of the bridge app
 # (applicationId com.couchtommouth.bridge.newpos) and publishes it as a
 # GitHub Release so the in-app auto-updater can find and download it.
+#
+# IMPORTANT: APKs must be signed with the SAME keystore every build.
+# Generating a fresh keystore per CI run makes Android / Play Protect treat
+# each update as a brand-new untrusted app (scary "not safe" prompts), and
+# in-place updates fail. The stable keystore lives in the
+# SIGNING_KEYSTORE_BASE64 repo secret.
 
 on:
   push:
@@ -30,17 +36,20 @@ jobs:
         with:
           gradle-version: '9.1.0'
 
-      - name: Generate signing keystore
+      - name: Restore stable signing keystore
         working-directory: app
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
         run: |
-          if [ ! -f release.keystore ]; then
-            keytool -genkeypair -v \
-              -keystore release.keystore \
-              -alias c2m-release \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass c2mbridge2024 -keypass c2mbridge2024 \
-              -dname "CN=CouchToMouth, OU=POS, O=CouchToMouth, C=GB"
+          if [ -z "${SIGNING_KEYSTORE_BASE64}" ]; then
+            echo "ERROR: repo secret SIGNING_KEYSTORE_BASE64 is not set." >&2
+            echo "Without a stable key, every CI build is a different 'app' to Android." >&2
+            exit 1
           fi
+          echo "${SIGNING_KEYSTORE_BASE64}" | base64 -d > release.keystore
+          # Sanity: keytool must be able to open it with the gradle passwords
+          keytool -list -keystore release.keystore \
+            -storepass c2mbridge2024 -alias c2m-release >/dev/null
 
       - name: Build newpos release APK
         run: gradle assembleNewposRelease --no-daemon --stacktrace
@@ -66,6 +75,8 @@ jobs:
           body: |
             Bridge app v${{ steps.version.outputs.name }} (code ${{ steps.version.outputs.code }})
             Built from ${{ github.sha }}
+
+            Signed with the stable release keystore (same cert every build).
           files: app/build/outputs/apk/c2m-bridge-newpos.apk
           make_latest: true
 
