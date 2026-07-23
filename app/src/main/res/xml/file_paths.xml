@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
-    <!-- For APK updates downloaded to Downloads folder -->
+    <!-- APK updates downloaded into getExternalFilesDir()/updates/ -->
+    <external-files-path
+        name="updates"
+        path="updates/" />
+    <!-- Keep Downloads path for any leftover old-updater files -->
     <external-path
         name="downloads"
         path="Download/" />
