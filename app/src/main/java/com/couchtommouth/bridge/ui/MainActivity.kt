@@ -221,6 +221,9 @@ class MainActivity : AppCompatActivity() {
             (function() {
                 // Mark that we're running in the bridge app
                 window.isAndroidBridge = true;
+                // New APKs ack print success/fail via window.__c2mOnPrintResult
+                // so the POS does not stamp /printed on a failed kitchen ticket.
+                window.__c2mPrintAcks = true;
                 
                 // Function to be called by POS when payment is requested
                 window.requestCardPayment = function(amount, reference) {
@@ -258,6 +261,29 @@ class MainActivity : AppCompatActivity() {
 
     private fun updatePrinterStatus(connected: Boolean) {
         Log.d(TAG, "Printer status: ${if (connected) "Connected" else "Disconnected"}")
+    }
+
+    /**
+     * Tell the POS page whether the async print actually succeeded.
+     * The web app registers window.__c2mOnPrintResult and only stamps
+     * /printed after ok=true — otherwise a dead printer would swallow the ticket.
+     */
+    private fun notifyPrintResult(ok: Boolean, message: String?) {
+        val msgLiteral = if (message == null) {
+            "null"
+        } else {
+            // JSON string literal = safe JS string literal
+            org.json.JSONObject.quote(message)
+        }
+        val script =
+            "window.__c2mOnPrintResult&&window.__c2mOnPrintResult(${if (ok) "true" else "false"},$msgLiteral);"
+        runOnUiThread {
+            try {
+                binding.webView.evaluateJavascript(script, null)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to notify print result to WebView", e)
+            }
+        }
     }
 
     /**
@@ -322,8 +348,10 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val receiptData = ReceiptData.fromJson(receiptJson)
                     printerManager.printReceipt(receiptData)
+                    notifyPrintResult(ok = true, message = null)
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to print receipt", e)
+                    notifyPrintResult(ok = false, message = e.message)
                     runOnUiThread {
                         Toast.makeText(this@MainActivity, "Print failed: ${e.message}", Toast.LENGTH_SHORT).show()
                     }
