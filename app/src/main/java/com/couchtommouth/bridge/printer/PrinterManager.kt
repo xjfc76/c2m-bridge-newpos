@@ -15,6 +15,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.io.OutputStream
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.util.*
 
 /**
@@ -36,6 +38,7 @@ class PrinterManager(private val context: Context) {
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager?.adapter
     // @Volatile ensures coroutines on Dispatchers.IO always see the current value
     @Volatile private var socket: BluetoothSocket? = null
+    @Volatile private var networkSocket: Socket? = null
     @Volatile private var outputStream: OutputStream? = null
     private val config = AppConfig(context)
 
@@ -62,7 +65,9 @@ class PrinterManager(private val context: Context) {
 
     fun isBluetoothEnabled(): Boolean = bluetoothAdapter?.isEnabled == true
 
-    fun isConnected(): Boolean = socket?.isConnected == true
+    fun isConnected(): Boolean =
+        socket?.isConnected == true ||
+        (networkSocket?.isConnected == true && networkSocket?.isClosed == false)
 
     @SuppressLint("MissingPermission")
     fun getPairedDevices(): List<BluetoothDevice> {
@@ -106,11 +111,55 @@ class PrinterManager(private val context: Context) {
         try {
             outputStream?.close()
             socket?.close()
+            networkSocket?.close()
         } catch (e: IOException) {
             Log.e(TAG, "Error disconnecting", e)
         }
         outputStream = null
         socket = null
+        networkSocket = null
+    }
+
+    /**
+     * Connect using the saved configuration (Bluetooth or Network).
+     * Returns true if the connection succeeds.
+     */
+    suspend fun connectSaved(): Boolean {
+        return if (config.isNetworkPrinter()) {
+            val ip = config.getPrinterIp() ?: return false
+            val port = config.getPrinterPort()
+            connectToNetworkPrinter(ip, port)
+        } else {
+            val address = config.getSavedPrinterAddress() ?: return false
+            connectToPrinter(address)
+        }
+    }
+
+    /**
+     * Connect to a network printer via TCP (raw ESC/POS on port 9100).
+     * Works with Epson TM-m30, TM-T20, TM-T88 and similar JetDirect-capable printers.
+     */
+    suspend fun connectToNetworkPrinter(ip: String, port: Int): Boolean = withContext(Dispatchers.IO) {
+        try {
+            disconnect()
+            Log.d(TAG, "Connecting to network printer $ip:$port")
+
+            val sock = Socket()
+            sock.connect(InetSocketAddress(ip, port), 5000)
+            networkSocket = sock
+            outputStream = sock.getOutputStream()
+
+            // Initialize printer
+            outputStream?.write(ESC.INIT)
+            outputStream?.flush()
+
+            Log.d(TAG, "Network printer connected successfully")
+            return@withContext true
+        } catch (e: IOException) {
+            Log.e(TAG, "Network printer connection failed", e)
+            disconnect()
+            return@withContext false
+        }
     }
 
     /**
@@ -119,10 +168,9 @@ class PrinterManager(private val context: Context) {
      * Throws IOException if no address is saved or reconnect fails.
      */
     private suspend fun ensureConnected() {
-        if (socket?.isConnected != true || outputStream == null) {
-            val savedAddress = config.getSavedPrinterAddress()
-                ?: throw IOException("No printer configured")
-            val connected = connectToPrinter(savedAddress)
+        if (!isConnected() || outputStream == null) {
+            if (!config.isPrinterConfigured()) throw IOException("No printer configured")
+            val connected = connectSaved()
             if (!connected) throw IOException("Could not connect to printer")
         }
     }
@@ -275,7 +323,7 @@ class PrinterManager(private val context: Context) {
             printLine(receipt.deliveryAddress)
         }
         
-        printLine("-".repeat(32))
+        printLine("-".repeat(width()))
         
         // Items
         for (item in receipt.items) {
@@ -294,7 +342,7 @@ class PrinterManager(private val context: Context) {
             }
         }
         
-        printLine("-".repeat(32))
+        printLine("-".repeat(width()))
         
         // Total
         if (receipt.showPrices) {
@@ -358,7 +406,7 @@ class PrinterManager(private val context: Context) {
             stream.write(ESC.BOLD_ON)
             printLine("Bold text")
             stream.write(ESC.BOLD_OFF)
-            printLine("-".repeat(32))
+            printLine("-".repeat(width()))
             printLine("If you can read this,")
             printLine("printing is working!")
             printLine("")
@@ -468,10 +516,13 @@ class PrinterManager(private val context: Context) {
         return "£${"%.2f".format(amount)}"
     }
 
+    /** Current receipt column width (32 for 58mm, 48 for 80mm). */
+    private fun width(): Int = config.getReceiptWidth()
+
     /**
      * Format a line with left and right text (for item - price alignment)
      */
-    private fun formatLine(left: String, right: String, width: Int = 32): String {
+    private fun formatLine(left: String, right: String, width: Int = width()): String {
         val spaces = width - left.length - right.length
         return if (spaces > 0) {
             left + " ".repeat(spaces) + right

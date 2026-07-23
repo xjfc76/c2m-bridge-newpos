@@ -114,11 +114,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initializeBluetooth() {
-        // Connect to saved printer if configured
-        val savedPrinter = config.getSavedPrinterAddress()
-        if (savedPrinter != null) {
+        // Connect to saved printer if configured (Bluetooth or Network)
+        if (config.isPrinterConfigured()) {
             scope.launch {
-                val connected = printerManager.connectToPrinter(savedPrinter)
+                val connected = printerManager.connectSaved()
                 if (connected) {
                     Log.d(TAG, "Connected to saved printer")
                     updatePrinterStatus(true)
@@ -139,10 +138,9 @@ class MainActivity : AppCompatActivity() {
         scope.launch {
             while (true) {
                 delay(30_000)
-                val savedPrinter = config.getSavedPrinterAddress()
-                if (savedPrinter != null && !printerManager.isConnected()) {
+                if (config.isPrinterConfigured() && !printerManager.isConnected()) {
                     Log.d(TAG, "Health check: printer disconnected, reconnecting...")
-                    val connected = printerManager.connectToPrinter(savedPrinter)
+                    val connected = printerManager.connectSaved()
                     Log.d(TAG, "Health check reconnect = $connected")
                     updatePrinterStatus(connected)
                 }
@@ -471,11 +469,10 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         // Always reconnect on resume — don't rely on isConnected() which returns a cached
         // value and can be stale (true) after the socket has actually been dropped.
-        // connectToPrinter() calls disconnect() internally before reconnecting, so this is safe.
-        val savedPrinter = config.getSavedPrinterAddress()
-        if (savedPrinter != null) {
+        // connectSaved() calls disconnect() internally before reconnecting, so this is safe.
+        if (config.isPrinterConfigured()) {
             scope.launch {
-                val connected = printerManager.connectToPrinter(savedPrinter)
+                val connected = printerManager.connectSaved()
                 Log.d(TAG, "onResume: Printer reconnect = $connected")
                 updatePrinterStatus(connected)
             }

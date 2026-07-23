@@ -2,7 +2,7 @@ name: Build newpos bridge APK
 
 # Standalone repo: builds the newpos flavor of the bridge app
 # (applicationId com.couchtommouth.bridge.newpos) and publishes it as a
-# workflow artifact. Completely isolated from the live app + its update feed.
+# GitHub Release so the in-app auto-updater can find and download it.
 
 on:
   push:
@@ -13,6 +13,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write        # needed to create GitHub Releases
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,8 +31,6 @@ jobs:
           gradle-version: '9.1.0'
 
       - name: Generate signing keystore
-        # newpos is a brand-new app (no installed base), so a fresh signing key
-        # is fine. Alias/passwords match app/build.gradle.kts signingConfigs.
         working-directory: app
         run: |
           if [ ! -f release.keystore ]; then
@@ -42,12 +42,36 @@ jobs:
               -dname "CN=CouchToMouth, OU=POS, O=CouchToMouth, C=GB"
           fi
 
-      - name: Build newpos debug APK
-        run: gradle assembleNewposDebug --no-daemon --stacktrace
+      - name: Build newpos release APK
+        run: gradle assembleNewposRelease --no-daemon --stacktrace
 
-      - name: Upload APK artifact
+      - name: Read version info
+        id: version
+        run: |
+          VERSION_NAME=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          VERSION_CODE=$(grep 'versionCode' app/build.gradle.kts | head -1 | sed 's/[^0-9]//g')
+          echo "name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Rename APK
+        run: |
+          APK=$(find app/build/outputs/apk/newpos/release -name '*.apk' | head -1)
+          cp "$APK" app/build/outputs/apk/c2m-bridge-newpos.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.name }}
+          name: v${{ steps.version.outputs.name }}
+          body: |
+            Bridge app v${{ steps.version.outputs.name }} (code ${{ steps.version.outputs.code }})
+            Built from ${{ github.sha }}
+          files: app/build/outputs/apk/c2m-bridge-newpos.apk
+          make_latest: true
+
+      - name: Upload APK artifact (backup)
         uses: actions/upload-artifact@v4
         with:
           name: c2m-newpos-apk
-          path: app/build/outputs/apk/newpos/debug/*.apk
+          path: app/build/outputs/apk/c2m-bridge-newpos.apk
           retention-days: 30

@@ -14,7 +14,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.content.FileProvider
 import com.couchtommouth.bridge.BuildConfig
 import com.google.gson.Gson
-import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -34,17 +33,14 @@ class UpdateManager(private val context: Context) {
 
     companion object {
         private const val TAG = "UpdateManager"
-        
-        // GitHub releases API URL (public repo for auto-updates)
-        private const val GITHUB_RELEASES_URL = "https://api.github.com/repos/xjfc76/couchToMouth_app/releases/latest"
-        private const val APK_NAME = "couch2mouth-bridge.apk"
     }
 
     private var downloadId: Long = -1
     private var downloadReceiver: BroadcastReceiver? = null
 
     /**
-     * Data class for GitHub release info
+     * Matches the version.json hosted alongside the APK.
+     * Each flavor's BuildConfig.UPDATE_URL points at its own version.json.
      */
     data class VersionInfo(
         val versionCode: Int,
@@ -52,21 +48,6 @@ class UpdateManager(private val context: Context) {
         val apkUrl: String,
         val releaseNotes: String?,
         val minAndroidSdk: Int? = 26
-    )
-    
-    /**
-     * Data class for GitHub API response
-     */
-    data class GitHubRelease(
-        @SerializedName("tag_name") val tagName: String,
-        @SerializedName("name") val name: String,
-        @SerializedName("body") val body: String?,
-        @SerializedName("assets") val assets: List<GitHubAsset>
-    )
-    
-    data class GitHubAsset(
-        @SerializedName("name") val name: String,
-        @SerializedName("browser_download_url") val downloadUrl: String
     )
 
     /**
@@ -105,50 +86,23 @@ class UpdateManager(private val context: Context) {
     }
 
     /**
-     * Fetch latest release info from GitHub
+     * Fetch latest version info from the per-flavor UPDATE_URL (version.json).
+     * Each flavor points at its own update feed — live vs newpos never cross.
      */
     private suspend fun fetchVersionInfo(): VersionInfo? = withContext(Dispatchers.IO) {
         try {
-            val url = URL(GITHUB_RELEASES_URL)
+            val url = URL(BuildConfig.UPDATE_URL)
+            Log.d(TAG, "Fetching version info from ${BuildConfig.UPDATE_URL}")
             val connection = url.openConnection() as HttpURLConnection
             connection.connectTimeout = 10000
             connection.readTimeout = 10000
             connection.requestMethod = "GET"
-            connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
             connection.setRequestProperty("User-Agent", "CouchToMouth-Bridge-App")
 
             if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                 val json = connection.inputStream.bufferedReader().readText()
                 connection.disconnect()
-                
-                val release = Gson().fromJson(json, GitHubRelease::class.java)
-                
-                // Parse version from tag (e.g., "v1.1.0" -> "1.1.0")
-                val versionName = release.tagName.removePrefix("v")
-                
-                // Find APK asset
-                val apkAsset = release.assets.find { it.name == APK_NAME }
-                if (apkAsset == null) {
-                    Log.w(TAG, "APK asset not found in release")
-                    return@withContext null
-                }
-                
-                // Calculate version code from version name (e.g., "1.1.0" -> 110, "1.2.3" -> 123)
-                val versionParts = versionName.split(".")
-                val versionCode = try {
-                    versionParts[0].toInt() * 100 + 
-                    versionParts.getOrNull(1)?.toInt().orZero() * 10 + 
-                    versionParts.getOrNull(2)?.toInt().orZero()
-                } catch (e: Exception) {
-                    1 // Fallback
-                }
-                
-                VersionInfo(
-                    versionCode = versionCode,
-                    versionName = versionName,
-                    apkUrl = apkAsset.downloadUrl,
-                    releaseNotes = release.body
-                )
+                Gson().fromJson(json, VersionInfo::class.java)
             } else {
                 Log.w(TAG, "Version check failed: ${connection.responseCode}")
                 connection.disconnect()
@@ -159,8 +113,6 @@ class UpdateManager(private val context: Context) {
             null
         }
     }
-    
-    private fun Int?.orZero(): Int = this ?: 0
 
     /**
      * Show dialog asking user to update

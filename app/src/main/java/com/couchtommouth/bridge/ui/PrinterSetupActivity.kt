@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -62,6 +63,17 @@ class PrinterSetupActivity : AppCompatActivity() {
             finish()
         }
 
+        // Network printer: connect button
+        binding.btnConnectNetwork.setOnClickListener {
+            connectToNetworkPrinter()
+        }
+
+        // 80mm paper checkbox → receipt width
+        binding.cb80mm.isChecked = config.getReceiptWidth() == AppConfig.WIDTH_80MM
+        binding.cb80mm.setOnCheckedChangeListener { _, isChecked ->
+            config.setReceiptWidth(if (isChecked) AppConfig.WIDTH_80MM else AppConfig.WIDTH_58MM)
+        }
+
         // Show current printer
         val currentPrinter = config.getSavedPrinterName()
         if (currentPrinter != null) {
@@ -72,6 +84,12 @@ class PrinterSetupActivity : AppCompatActivity() {
             binding.tvCurrentPrinter.text = "No printer selected"
             binding.btnTestPrint.isEnabled = false
             binding.btnTestDrawer.isEnabled = false
+        }
+
+        // Pre-fill saved network printer IP/port
+        if (config.isNetworkPrinter()) {
+            binding.etPrinterIp.setText(config.getPrinterIp() ?: "")
+            binding.etPrinterPort.setText(config.getPrinterPort().toString())
         }
     }
 
@@ -127,15 +145,45 @@ class PrinterSetupActivity : AppCompatActivity() {
         }
     }
 
+    private fun connectToNetworkPrinter() {
+        val ip = binding.etPrinterIp.text.toString().trim()
+        val portStr = binding.etPrinterPort.text.toString().trim()
+
+        if (ip.isEmpty()) {
+            Toast.makeText(this, "Enter the printer IP address", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val port = portStr.toIntOrNull() ?: AppConfig.DEFAULT_PRINTER_PORT
+        binding.progressBar.visibility = View.VISIBLE
+        binding.tvStatus.text = "Connecting to $ip:$port..."
+
+        scope.launch {
+            val connected = printerManager.connectToNetworkPrinter(ip, port)
+            binding.progressBar.visibility = View.GONE
+
+            if (connected) {
+                config.saveNetworkPrinter(ip, port, "Network ($ip)")
+                binding.tvCurrentPrinter.text = "Current: Network ($ip)"
+                binding.tvStatus.text = "Network printer connected!"
+                binding.btnTestPrint.isEnabled = true
+                binding.btnTestDrawer.isEnabled = config.hasCashDrawer()
+                Toast.makeText(this@PrinterSetupActivity, "Network printer connected!", Toast.LENGTH_SHORT).show()
+            } else {
+                binding.tvStatus.text = "Connection failed"
+                Toast.makeText(this@PrinterSetupActivity, "Failed to connect to $ip:$port. Check IP and that the printer is on.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     private fun testPrint() {
         binding.tvStatus.text = "Printing test page..."
         
         scope.launch {
             try {
-                // Always reconnect before a test — never trust isConnected() which can be stale
-                val address = config.getSavedPrinterAddress()
-                if (address != null) {
-                    printerManager.connectToPrinter(address)
+                // Always reconnect before a test
+                if (config.isPrinterConfigured()) {
+                    printerManager.connectSaved()
                 }
                 
                 printerManager.printTestPage()
@@ -153,10 +201,9 @@ class PrinterSetupActivity : AppCompatActivity() {
         
         scope.launch {
             try {
-                // Always reconnect before a test — never trust isConnected() which can be stale
-                val address = config.getSavedPrinterAddress()
-                if (address != null) {
-                    printerManager.connectToPrinter(address)
+                // Always reconnect before a test
+                if (config.isPrinterConfigured()) {
+                    printerManager.connectSaved()
                 }
                 
                 printerManager.openCashDrawer()

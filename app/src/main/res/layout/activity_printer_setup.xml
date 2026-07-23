@@ -67,7 +67,56 @@
         android:layout_height="wrap_content"
         android:visibility="gone" />
 
-    <!-- Device List -->
+    <!-- ============ Network Printer Section ============ -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Network Printer (Ethernet/Wi-Fi):"
+        android:textStyle="bold"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="4dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="4dp">
+
+        <EditText
+            android:id="@+id/etPrinterIp"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="3"
+            android:hint="Printer IP (e.g. 192.168.1.76)"
+            android:inputType="text"
+            android:layout_marginEnd="8dp" />
+
+        <EditText
+            android:id="@+id/etPrinterPort"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="Port"
+            android:text="9100"
+            android:inputType="number" />
+    </LinearLayout>
+
+    <CheckBox
+        android:id="@+id/cb80mm"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="80mm paper (48 col) — uncheck for 58mm (32 col)"
+        android:layout_marginBottom="4dp" />
+
+    <Button
+        android:id="@+id/btnConnectNetwork"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Connect Network Printer"
+        android:layout_marginBottom="12dp" />
+
+    <!-- ============ Bluetooth Devices ============ -->
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

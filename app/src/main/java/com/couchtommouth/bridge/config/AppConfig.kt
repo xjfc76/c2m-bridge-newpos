@@ -12,11 +12,26 @@ class AppConfig(context: Context) {
 
     companion object {
         private const val PREFS_NAME = "couch2mouth_bridge_prefs"
+
+        // Printer connection types
+        const val PRINTER_TYPE_BLUETOOTH = "bluetooth"
+        const val PRINTER_TYPE_NETWORK = "network"
+
+        // Default raw ESC/POS (JetDirect) port used by Epson TM and most network printers
+        const val DEFAULT_PRINTER_PORT = 9100
+
+        // Receipt column widths (chars per line, Font A)
+        const val WIDTH_58MM = 32
+        const val WIDTH_80MM = 48
         
         // Keys
         private const val KEY_POS_URL = "pos_url"
         private const val KEY_PRINTER_ADDRESS = "printer_address"
         private const val KEY_PRINTER_NAME = "printer_name"
+        private const val KEY_PRINTER_TYPE = "printer_type"
+        private const val KEY_PRINTER_IP = "printer_ip"
+        private const val KEY_PRINTER_PORT = "printer_port"
+        private const val KEY_RECEIPT_WIDTH = "receipt_width"
         private const val KEY_HAS_CASH_DRAWER = "has_cash_drawer"
         private const val KEY_HAS_PAPER_CUTTER = "has_paper_cutter"
         private const val KEY_PAYMENT_PROVIDER = "payment_provider"
@@ -52,18 +67,52 @@ class AppConfig(context: Context) {
     fun getSavedPrinterName(): String? {
         return prefs.getString(KEY_PRINTER_NAME, null)
     }
-    
+
+    fun getPrinterType(): String {
+        return prefs.getString(KEY_PRINTER_TYPE, PRINTER_TYPE_BLUETOOTH) ?: PRINTER_TYPE_BLUETOOTH
+    }
+
+    fun isNetworkPrinter(): Boolean = getPrinterType() == PRINTER_TYPE_NETWORK
+
+    fun getPrinterIp(): String? = prefs.getString(KEY_PRINTER_IP, null)
+
+    fun getPrinterPort(): Int = prefs.getInt(KEY_PRINTER_PORT, DEFAULT_PRINTER_PORT)
+
+    fun isPrinterConfigured(): Boolean {
+        return if (isNetworkPrinter()) !getPrinterIp().isNullOrEmpty()
+               else !getSavedPrinterAddress().isNullOrEmpty()
+    }
+
     fun savePrinter(address: String, name: String) {
         prefs.edit()
+            .putString(KEY_PRINTER_TYPE, PRINTER_TYPE_BLUETOOTH)
             .putString(KEY_PRINTER_ADDRESS, address)
             .putString(KEY_PRINTER_NAME, name)
+            .remove(KEY_PRINTER_IP)
             .apply()
+    }
+
+    fun saveNetworkPrinter(ip: String, port: Int, name: String) {
+        prefs.edit()
+            .putString(KEY_PRINTER_TYPE, PRINTER_TYPE_NETWORK)
+            .putString(KEY_PRINTER_IP, ip)
+            .putInt(KEY_PRINTER_PORT, port)
+            .putString(KEY_PRINTER_NAME, name)
+            .remove(KEY_PRINTER_ADDRESS)
+            .apply()
+    }
+
+    fun getReceiptWidth(): Int = prefs.getInt(KEY_RECEIPT_WIDTH, WIDTH_58MM)
+
+    fun setReceiptWidth(width: Int) {
+        prefs.edit().putInt(KEY_RECEIPT_WIDTH, width).apply()
     }
     
     fun clearPrinter() {
         prefs.edit()
             .remove(KEY_PRINTER_ADDRESS)
             .remove(KEY_PRINTER_NAME)
+            .remove(KEY_PRINTER_IP)
             .apply()
     }
     
