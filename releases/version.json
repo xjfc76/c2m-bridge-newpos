@@ -1,7 +1,7 @@
 {
-  "versionCode": 140,
-  "versionName": "1.4.0",
-  "apkUrl": "https://stagingpos.couchtomouth.com/couch2mouth-bridge-app/releases/c2m-bridge-newpos-1.4.0.apk",
-  "releaseNotes": "Network printer support (Epson TM-m30 etc), configurable receipt width (58/80mm), per-flavor auto-update feed",
+  "versionCode": 144,
+  "versionName": "1.4.4",
+  "apkUrl": "https://github.com/xjfc76/c2m-bridge-newpos/releases/download/v1.4.4/c2m-bridge-newpos.apk",
+  "releaseNotes": "Fix blank SumUp Pair Card Reader page (SDK init at app start)",
   "minAndroidSdk": 26
 }
