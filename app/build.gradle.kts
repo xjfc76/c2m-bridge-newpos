@@ -20,8 +20,8 @@ android {
         applicationId = "com.couchtommouth.bridge"
         minSdk = 26  // Android 8.0+ (covers Android 14 & 15)
         targetSdk = 35
-        versionCode = 145
-        versionName = "1.4.5"
+        versionCode = 146
+        versionName = "1.4.6"
 
         // Shared build config (identical across flavors). POS_URL, UPDATE_URL
         // and USE_REFERENCE_AS_FOREIGN_TX_ID vary per flavor (see productFlavors).

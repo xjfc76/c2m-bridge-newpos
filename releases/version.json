@@ -1,7 +1,7 @@
 {
-  "versionCode": 145,
-  "versionName": "1.4.5",
-  "apkUrl": "https://github.com/xjfc76/c2m-bridge-newpos/releases/download/v1.4.5/c2m-bridge-newpos.apk",
-  "releaseNotes": "Upgrade SumUp SDK to 7.1.0 + theme fix for blank Pair Card Reader page",
+  "versionCode": 146,
+  "versionName": "1.4.6",
+  "apkUrl": "https://github.com/xjfc76/c2m-bridge-newpos/releases/download/v1.4.6/c2m-bridge-newpos.apk",
+  "releaseNotes": "Show the paired card reader in Settings, report it to the POS, and reconnect it automatically",
   "minAndroidSdk": 26
 }

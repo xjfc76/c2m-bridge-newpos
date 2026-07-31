@@ -9,6 +9,8 @@ import com.couchtommouth.bridge.config.AppConfig
 import com.sumup.merchant.reader.api.SumUpAPI
 import com.sumup.merchant.reader.api.SumUpLogin
 import com.sumup.merchant.reader.api.SumUpPayment
+import com.sumup.merchant.reader.models.ReaderType
+import com.sumup.merchant.reader.models.SavedCardReaderDetailsResult
 import java.math.BigDecimal
 import java.util.UUID
 
@@ -71,6 +73,67 @@ class PaymentManager(private val context: Context) {
      */
     fun openSettings(activity: Activity) {
         SumUpAPI.openCardReaderPage(activity, SUMUP_SETTINGS_REQUEST_CODE)
+    }
+
+    /**
+     * The reader SumUp has paired to this app, or null when none is set up.
+     * Survives the reader sleeping/going out of range — only pairing clears it.
+     */
+    fun savedCardReader(): SavedCardReader? {
+        return try {
+            val details = SumUpAPI.getSavedCardReaderDetails()
+                as? SavedCardReaderDetailsResult.SavedCardReaderDetails ?: return null
+            SavedCardReader(
+                type = readerTypeName(details.readerType),
+                serialNumber = details.serialNumber.orEmpty(),
+                batteryPercentage = details.lastKnownBatteryPercentage,
+                connected = isCardReaderConnected()
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not read saved card reader details", e)
+            null
+        }
+    }
+
+    /** Whether the reader is connected over Bluetooth right now (it sleeps between sales). */
+    fun isCardReaderConnected(): Boolean {
+        return try {
+            SumUpAPI.isCardReaderConnected()
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * What the POS asks about before offering a card sale: logged in with a reader
+     * paired. A sleeping reader still counts — [prepareForCheckout] wakes it.
+     */
+    fun isCardTerminalReady(): Boolean {
+        if (!isConfigured()) return false
+        if (config.getPaymentProvider() != PaymentProvider.SUMUP) return true
+        return isLoggedIn() && savedCardReader() != null
+    }
+
+    /**
+     * Reconnect the paired reader ahead of a sale. Must run on the main thread —
+     * the SDK builds a Handler internally.
+     */
+    fun prepareForCheckout() {
+        if (!isLoggedIn() || savedCardReader() == null) return
+        try {
+            SumUpAPI.prepareForCheckout()
+        } catch (e: Exception) {
+            Log.e(TAG, "prepareForCheckout failed", e)
+        }
+    }
+
+    private fun readerTypeName(type: ReaderType?): String = when (type) {
+        ReaderType.SOLO -> "Solo"
+        ReaderType.SOLO_LITE -> "Solo Lite"
+        ReaderType.AIR -> "Air"
+        ReaderType.THREE_G -> "3G"
+        ReaderType.PIN_PLUS -> "PIN+"
+        else -> "Card reader"
     }
 
     /**

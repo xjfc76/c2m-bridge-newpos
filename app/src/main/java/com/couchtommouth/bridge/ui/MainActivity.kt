@@ -250,6 +250,18 @@ class MainActivity : AppCompatActivity() {
                     }
                 };
                 
+                window.getPaymentProviderStatus = function() {
+                    return window.AndroidBridge
+                        ? window.AndroidBridge.getPaymentProviderStatus()
+                        : 'not_configured';
+                };
+                
+                window.getCardReaderStatus = function() {
+                    return window.AndroidBridge
+                        ? window.AndroidBridge.getCardReaderStatus()
+                        : 'not_paired';
+                };
+                
                 console.log('Android Bridge initialized');
             })();
         """.trimIndent()
@@ -388,7 +400,13 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun getPaymentProviderStatus(): String {
-            return if (paymentManager.isConfigured()) "configured" else "not_configured"
+            return if (paymentManager.isCardTerminalReady()) "configured" else "not_configured"
+        }
+
+        @JavascriptInterface
+        fun getCardReaderStatus(): String {
+            val reader = paymentManager.savedCardReader() ?: return "not_paired"
+            return if (reader.connected) "connected" else "paired"
         }
     }
 
@@ -505,6 +523,11 @@ class MainActivity : AppCompatActivity() {
                 updatePrinterStatus(connected)
             }
         }
+
+        // Solo/Solo Lite drop their BLE link when idle. Reconnect now so the first
+        // card sale of the session doesn't wait on the reader waking up.
+        paymentManager.prepareForCheckout()
+        Log.d(TAG, "onResume: card reader connected = ${paymentManager.isCardReaderConnected()}")
     }
 
     override fun onDestroy() {

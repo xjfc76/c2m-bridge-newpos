@@ -182,6 +182,8 @@ class SettingsActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         paymentManager.handleActivityResult(requestCode, resultCode, data)
         updateSumUpStatus()
+        // Pairing/login state can land a moment after the SumUp screen closes.
+        handler.postDelayed({ updateSumUpStatus() }, 1_500)
     }
 
     private fun updateSumUpStatus() {
@@ -193,6 +195,20 @@ class SettingsActivity : AppCompatActivity() {
         }
         binding.btnSumUpLogin.text = if (isLoggedIn) "Logout" else "Login to SumUp"
         binding.btnSumUpCardReader.isEnabled = isLoggedIn
+
+        val reader = if (isLoggedIn) paymentManager.savedCardReader() else null
+        binding.tvCardReaderStatus.text = when {
+            !isLoggedIn -> "Card reader: log in first"
+            reader == null -> "Card reader: not paired"
+            reader.connected -> "Card reader: ✓ ${reader.describe()}"
+            // Solo/Solo Lite drop the BLE link when idle; it wakes for the sale.
+            else -> "Card reader: ${reader.describe()} — asleep"
+        }
+
+        // Wake the reader so the status settles on "connected" without a sale.
+        if (reader != null && !reader.connected) {
+            paymentManager.prepareForCheckout()
+        }
     }
 
     override fun onDestroy() {
