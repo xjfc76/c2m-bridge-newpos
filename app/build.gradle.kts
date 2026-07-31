@@ -20,8 +20,8 @@ android {
         applicationId = "com.couchtommouth.bridge"
         minSdk = 26  // Android 8.0+ (covers Android 14 & 15)
         targetSdk = 35
-        versionCode = 146
-        versionName = "1.4.6"
+        versionCode = 147
+        versionName = "1.4.7"
 
         // Shared build config (identical across flavors). POS_URL, UPDATE_URL
         // and USE_REFERENCE_AS_FOREIGN_TX_ID vary per flavor (see productFlavors).
@@ -47,6 +47,9 @@ android {
             buildConfigField("String", "POS_URL", "\"https://pos.couchtomouth.com/\"")
             buildConfigField("String", "UPDATE_URL", "\"https://pos.couchtomouth.com/couch2mouth-bridge-app/releases/version.json\"")
             buildConfigField("boolean", "USE_REFERENCE_AS_FOREIGN_TX_ID", "false")
+            // The old POS has no token endpoint; the shop till keeps signing in
+            // at the SumUp screen exactly as it does today.
+            buildConfigField("boolean", "SILENT_SUMUP_LOGIN", "false")
         }
         create("newpos") {
             dimension = "target"
@@ -56,6 +59,9 @@ android {
             buildConfigField("String", "POS_URL", "\"https://stagingpos.couchtomouth.com/\"")
             buildConfigField("String", "UPDATE_URL", "\"https://stagingpos.couchtomouth.com/couch2mouth-bridge-app/releases/version.json\"")
             buildConfigField("boolean", "USE_REFERENCE_AS_FOREIGN_TX_ID", "true")
+            // Sign the SumUp SDK in with a token from the POS, so the merchant
+            // password is never typed on the tablet.
+            buildConfigField("boolean", "SILENT_SUMUP_LOGIN", "true")
         }
     }
 

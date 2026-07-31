@@ -188,10 +188,13 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun updateSumUpStatus() {
         val isLoggedIn = paymentManager.isLoggedIn()
-        binding.tvSumUpStatus.text = if (isLoggedIn) {
-            "Status: ✓ Logged in"
-        } else {
-            "Status: Not logged in"
+        val merchantCode = paymentManager.currentMerchantCode()
+        binding.tvSumUpStatus.text = when {
+            // Signed in off a POS-issued token: nobody typed a password, and
+            // nobody will have to again.
+            isLoggedIn && merchantCode != null -> "Status: ✓ Signed in automatically ($merchantCode)"
+            isLoggedIn -> "Status: ✓ Logged in"
+            else -> "Status: Not signed in — the till signs itself in once the POS is open"
         }
         binding.btnSumUpLogin.text = if (isLoggedIn) "Logout" else "Login to SumUp"
         binding.btnSumUpCardReader.isEnabled = isLoggedIn

@@ -1,7 +1,7 @@
 {
-  "versionCode": 146,
-  "versionName": "1.4.6",
-  "apkUrl": "https://github.com/xjfc76/c2m-bridge-newpos/releases/download/v1.4.6/c2m-bridge-newpos.apk",
-  "releaseNotes": "Show the paired card reader in Settings, report it to the POS, and reconnect it automatically",
+  "versionCode": 147,
+  "versionName": "1.4.7",
+  "apkUrl": "https://github.com/xjfc76/c2m-bridge-newpos/releases/download/v1.4.7/c2m-bridge-newpos.apk",
+  "releaseNotes": "Sign into SumUp automatically using a token from the POS — no more logging in after every restart",
   "minAndroidSdk": 26
 }

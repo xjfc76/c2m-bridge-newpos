@@ -2,6 +2,7 @@ package com.couchtommouth.bridge.ui
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -20,6 +21,7 @@ import com.couchtommouth.bridge.config.AppConfig
 import com.couchtommouth.bridge.databinding.ActivityMainBinding
 import com.couchtommouth.bridge.payment.PaymentManager
 import com.couchtommouth.bridge.payment.PaymentResult
+import com.couchtommouth.bridge.payment.SumUpSession
 import com.couchtommouth.bridge.printer.PrinterManager
 import com.couchtommouth.bridge.printer.ReceiptData
 import com.couchtommouth.bridge.update.UpdateManager
@@ -34,6 +36,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var updateManager: UpdateManager
 
     private val scope = CoroutineScope(Dispatchers.Main + Job())
+
+    /** Stops overlapping sign-in attempts when pages load in quick succession. */
+    private var sumUpLoginInFlight = false
 
     companion object {
         private const val TAG = "MainActivity"
@@ -64,6 +69,11 @@ class MainActivity : AppCompatActivity() {
         printerManager = PrinterManager(this)
         paymentManager = PaymentManager(this)
         updateManager = UpdateManager(this)
+
+        // Let a payment ask for a sign-in when the SDK has forgotten one.
+        paymentManager.silentLoginRequest = { activity, fallbackToManualLogin ->
+            ensureSumUpLogin(activity, fallbackToManualLogin)
+        }
 
         // Check for app updates
         scope.launch {
@@ -177,6 +187,10 @@ class MainActivity : AppCompatActivity() {
                     
                     // Inject the bridge detection script
                     injectBridgeScript()
+
+                    // The POS session cookie exists once staff have signed in,
+                    // so this is the moment SumUp can be signed in too.
+                    ensureSumUpLogin(this@MainActivity, fallbackToManualLogin = false)
                 }
 
                 override fun onReceivedError(
@@ -213,6 +227,59 @@ class MainActivity : AppCompatActivity() {
         Log.d(TAG, "Loading POS: $url")
         binding.progressBar.visibility = View.VISIBLE
         binding.webView.loadUrl(url)
+    }
+
+    /**
+     * Sign the SumUp SDK in with a token the POS issues, so nobody types
+     * merchant credentials on the tablet. The SDK drops its login whenever the
+     * app process dies, so this runs on every launch and page load.
+     *
+     * Deliberately quiet: the usual "no POS session yet" answer (the login page
+     * is showing) just leaves us signed out until the next page load, after
+     * staff have signed in. [fallbackToManualLogin] opens the SumUp password
+     * screen when there is a sale waiting and no token can be had — a card
+     * payment must never be blocked by this.
+     */
+    private fun ensureSumUpLogin(activity: Activity, fallbackToManualLogin: Boolean) {
+        if (paymentManager.isLoggedIn()) return
+        // The live shop app talks to the old POS, which has no token endpoint —
+        // it keeps signing in at the SumUp screen exactly as it does today.
+        if (!BuildConfig.SILENT_SUMUP_LOGIN) {
+            if (fallbackToManualLogin) paymentManager.login(activity)
+            return
+        }
+        if (sumUpLoginInFlight) return
+        sumUpLoginInFlight = true
+
+        // Read the cookie here, on the main thread, and hand it to the fetch:
+        // it carries the POS staff session that authorises the token request.
+        val cookie = try {
+            CookieManager.getInstance().getCookie(config.getPosUrl())
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not read the POS session cookie", e)
+            null
+        }
+
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                paymentManager.sumUpSession.fetchToken(cookie)
+            }
+            sumUpLoginInFlight = false
+            when (result) {
+                is SumUpSession.TokenResult.Success -> {
+                    Log.d(TAG, "Signing into SumUp with a POS-issued token")
+                    paymentManager.loginWithToken(activity, result.token.accessToken)
+                }
+                is SumUpSession.TokenResult.NotSignedIn -> {
+                    Log.d(TAG, "No POS session yet — SumUp sign-in deferred")
+                    if (fallbackToManualLogin) paymentManager.login(activity)
+                }
+                is SumUpSession.TokenResult.Unavailable -> {
+                    Log.w(TAG, "Silent SumUp login unavailable: ${result.reason}")
+                    if (fallbackToManualLogin) paymentManager.login(activity)
+                }
+            }
+        }
     }
 
     private fun injectBridgeScript() {
@@ -523,6 +590,10 @@ class MainActivity : AppCompatActivity() {
                 updatePrinterStatus(connected)
             }
         }
+
+        // Sign back into SumUp if the SDK has dropped the session (it does not
+        // survive the app being killed), before anyone reaches for the card.
+        ensureSumUpLogin(this, fallbackToManualLogin = false)
 
         // Solo/Solo Lite drop their BLE link when idle. Reconnect now so the first
         // card sale of the session doesn't wait on the reader waking up.
