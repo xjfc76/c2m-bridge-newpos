@@ -20,8 +20,8 @@ android {
         applicationId = "com.couchtommouth.bridge"
         minSdk = 26  // Android 8.0+ (covers Android 14 & 15)
         targetSdk = 34
-        versionCode = 143
-        versionName = "1.4.3"
+        versionCode = 144
+        versionName = "1.4.4"
 
         // Shared build config (identical across flavors). POS_URL, UPDATE_URL
         // and USE_REFERENCE_AS_FOREIGN_TX_ID vary per flavor (see productFlavors).
@@ -109,6 +109,8 @@ dependencies {
 
     // SumUp SDK
     implementation("com.sumup:merchant-sdk:5.0.2")
+    // Recommended by SumUp for accurate location during card payments
+    implementation("com.google.android.gms:play-services-location:21.0.1")
 
     // JSON parsing
     implementation("com.google.code.gson:gson:2.10.1")

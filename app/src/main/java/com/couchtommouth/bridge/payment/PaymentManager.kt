@@ -9,12 +9,12 @@ import com.couchtommouth.bridge.config.AppConfig
 import com.sumup.merchant.reader.api.SumUpAPI
 import com.sumup.merchant.reader.api.SumUpLogin
 import com.sumup.merchant.reader.api.SumUpPayment
-import com.sumup.merchant.reader.api.SumUpState
 import java.math.BigDecimal
 import java.util.UUID
 
 /**
  * Manages card payment processing through SumUp.
+ * SumUp SDK init lives in [com.couchtommouth.bridge.BridgeApplication].
  */
 class PaymentManager(private val context: Context) {
 
@@ -29,23 +29,6 @@ class PaymentManager(private val context: Context) {
     private var pendingPaymentAmount: Double = 0.0
     private var pendingPaymentReference: String = ""
     var paymentCallback: ((PaymentResult) -> Unit)? = null
-
-    init {
-        // Initialize SumUp SDK
-        initializeSumUp()
-    }
-
-    private fun initializeSumUp() {
-        val affiliateKey = config.getSumUpAffiliateKey()
-        if (affiliateKey.isNotEmpty()) {
-            try {
-                SumUpState.init(context)
-                Log.d(TAG, "SumUp SDK initialized")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to initialize SumUp SDK", e)
-            }
-        }
-    }
 
     /**
      * Check if a payment provider is configured
