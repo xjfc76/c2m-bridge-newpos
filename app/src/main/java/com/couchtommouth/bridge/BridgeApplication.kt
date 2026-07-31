@@ -2,7 +2,7 @@ package com.couchtommouth.bridge
 
 import android.app.Application
 import android.util.Log
-import com.sumup.merchant.reader.api.SumUpState
+import com.sumup.reader.sdk.api.SumUpState
 
 /**
  * Application entry point. SumUp requires [SumUpState.init] here (not in an Activity)

@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.CouchToMouthBridge" parent="Theme.Material3.Light.NoActionBar">
+    <!-- MaterialComponents (not Material3): SumUp SDK card-reader UI inherits the
+         app theme; Material3 has been linked to blank/broken SumUp screens. -->
+    <style name="Theme.CouchToMouthBridge" parent="Theme.MaterialComponents.Light.NoActionBar">
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryDark">@color/primary_dark</item>
         <item name="colorAccent">@color/accent</item>

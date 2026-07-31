@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.couchtommouth.bridge"
-    compileSdk = 34
+    compileSdk = 35
 
     signingConfigs {
         create("release") {
@@ -19,9 +19,9 @@ android {
     defaultConfig {
         applicationId = "com.couchtommouth.bridge"
         minSdk = 26  // Android 8.0+ (covers Android 14 & 15)
-        targetSdk = 34
-        versionCode = 144
-        versionName = "1.4.4"
+        targetSdk = 35
+        versionCode = 145
+        versionName = "1.4.5"
 
         // Shared build config (identical across flavors). POS_URL, UPDATE_URL
         // and USE_REFERENCE_AS_FOREIGN_TX_ID vary per flavor (see productFlavors).
@@ -75,6 +75,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -107,10 +108,10 @@ dependencies {
     // Bluetooth printing - ESC/POS library
     implementation("com.github.DantSu:ESCPOS-ThermalPrinter-Android:3.3.0")
 
-    // SumUp SDK
-    implementation("com.sumup:merchant-sdk:5.0.2")
-    // Recommended by SumUp for accurate location during card payments
-    implementation("com.google.android.gms:play-services-location:21.0.1")
+    // SumUp SDK (7.1 — blank Card Reader page fixes / Solo Lite support)
+    implementation("com.sumup:merchant-sdk:7.1.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
     // JSON parsing
     implementation("com.google.code.gson:gson:2.10.1")
