@@ -1,7 +1,7 @@
 {
-  "versionCode": 148,
-  "versionName": "1.4.8",
-  "apkUrl": "https://github.com/xjfc76/c2m-bridge-newpos/releases/download/v1.4.8/c2m-bridge-newpos.apk",
-  "releaseNotes": "Keep the settings button and the POS page clear of the navigation bar, and stop repeating the print-failure warning",
+  "versionCode": 149,
+  "versionName": "1.4.9",
+  "apkUrl": "https://github.com/xjfc76/c2m-bridge-newpos/releases/download/v1.4.9/c2m-bridge-newpos.apk",
+  "releaseNotes": "Rebuilt settings screen: grouped sections, clear card reader and printer status, and values edited through a dialog instead of live text boxes",
   "minAndroidSdk": 26
 }
