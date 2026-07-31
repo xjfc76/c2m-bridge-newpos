@@ -22,6 +22,7 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.root.padForSystemBars()
 
         config = AppConfig(this)
         paymentManager = PaymentManager(this)

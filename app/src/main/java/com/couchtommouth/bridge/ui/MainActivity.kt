@@ -40,8 +40,11 @@ class MainActivity : AppCompatActivity() {
     /** Stops overlapping sign-in attempts when pages load in quick succession. */
     private var sumUpLoginInFlight = false
 
+    private var lastPrintFailureToastMs = 0L
+
     companion object {
         private const val TAG = "MainActivity"
+        private const val PRINT_FAILURE_TOAST_INTERVAL_MS = 60_000L
     }
 
     // Permission request launcher
@@ -61,6 +64,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.root.padForSystemBars()
 
         // Initialize config
         config = AppConfig(this)
@@ -343,6 +347,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
+     * Warn about a failed print, but only occasionally.
+     *
+     * The POS retries the print queue every few seconds and shows its own
+     * "N waiting to print" badge, so toasting every attempt buried the screen
+     * on any tablet without a printer paired.
+     */
+    private fun showPrintFailure(message: String?) {
+        val now = System.currentTimeMillis()
+        if (now - lastPrintFailureToastMs < PRINT_FAILURE_TOAST_INTERVAL_MS) return
+        lastPrintFailureToastMs = now
+        val text = if (!config.isPrinterConfigured()) {
+            "No printer set up on this tablet — tickets are queued"
+        } else {
+            "Print failed: ${message ?: "printer unreachable"}"
+        }
+        Toast.makeText(this, text, Toast.LENGTH_SHORT).show()
+    }
+
+    /**
      * Tell the POS page whether the async print actually succeeded.
      * The web app registers window.__c2mOnPrintResult and only stamps
      * /printed after ok=true — otherwise a dead printer would swallow the ticket.
@@ -431,9 +454,7 @@ class MainActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     Log.e(TAG, "Failed to print receipt", e)
                     notifyPrintResult(ok = false, message = e.message)
-                    runOnUiThread {
-                        Toast.makeText(this@MainActivity, "Print failed: ${e.message}", Toast.LENGTH_SHORT).show()
-                    }
+                    runOnUiThread { showPrintFailure(e.message) }
                 }
             }
         }

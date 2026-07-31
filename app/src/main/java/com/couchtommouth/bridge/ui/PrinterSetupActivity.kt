@@ -33,6 +33,7 @@ class PrinterSetupActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityPrinterSetupBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        binding.root.padForSystemBars()
 
         printerManager = PrinterManager(this)
         config = AppConfig(this)
