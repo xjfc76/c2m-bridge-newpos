@@ -34,6 +34,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var paymentManager: PaymentManager
     private lateinit var config: AppConfig
     private lateinit var updateManager: UpdateManager
+    private lateinit var updateOverlay: UpdateOverlay
 
     private val scope = CoroutineScope(Dispatchers.Main + Job())
 
@@ -73,6 +74,14 @@ class MainActivity : AppCompatActivity() {
         printerManager = PrinterManager(this)
         paymentManager = PaymentManager(this)
         updateManager = UpdateManager(this)
+
+        // An update takes over the whole screen rather than running behind a
+        // till someone is still serving on.
+        updateOverlay = UpdateOverlay(
+            binding.updateOverlay,
+            listOf(binding.webView, binding.fabSettings),
+        )
+        updateManager.ui = updateOverlay
 
         // Let a payment ask for a sign-in when the SDK has forgotten one.
         paymentManager.silentLoginRequest = { activity, fallbackToManualLogin ->
@@ -592,6 +601,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onBackPressed() {
+        // An update in progress owns the screen; back must not walk the POS
+        // page out from underneath it.
+        if (updateOverlay.isShowing) return
         if (binding.webView.canGoBack()) {
             binding.webView.goBack()
         } else {

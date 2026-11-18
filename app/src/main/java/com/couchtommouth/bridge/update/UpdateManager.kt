@@ -1,15 +1,12 @@
 package com.couchtommouth.bridge.update
 
 import android.app.Activity
-import android.app.ProgressDialog
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
-import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
 import androidx.core.content.FileProvider
 import com.couchtommouth.bridge.BuildConfig
 import com.google.gson.Gson
@@ -25,10 +22,14 @@ import java.net.URL
  *
  * Flow:
  *  1. On start, fetch version.json from UPDATE_URL
- *  2. If server versionCode > installed, show Update Available dialog
- *  3. On Update Now: download APK into app-private storage (no Downloads/
+ *  2. If server versionCode > installed, tell [ui] an update is available
+ *  3. On accept: download APK into app-private storage (no Downloads/
  *     MediaStore path guessing — that silently broke installs before)
  *  4. Prompt for "install unknown apps" if needed, then open the installer
+ *
+ * Everything the operator sees goes through [ui] rather than dialogs raised
+ * from here, so the whole update reads as one screen instead of the app
+ * appearing to do things to itself while the till is still live.
  */
 class UpdateManager(private val context: Context) {
 
@@ -37,6 +38,19 @@ class UpdateManager(private val context: Context) {
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 60_000
     }
+
+    /** Rendered by [com.couchtommouth.bridge.ui.UpdateOverlay]. */
+    interface UpdateUi {
+        fun onUpdateAvailable(info: VersionInfo, install: () -> Unit)
+        fun onDownloadProgress(percent: Int)
+        fun onInstallStarting()
+        fun onInstallHandedOver()
+        fun onInstallPermissionNeeded(openSettings: () -> Unit)
+        fun onUpdateFailed(message: String, retry: () -> Unit)
+    }
+
+    /** Set by the hosting activity. Without it an update is logged and skipped. */
+    var ui: UpdateUi? = null
 
     data class VersionInfo(
         val versionCode: Int,
@@ -75,7 +89,14 @@ class UpdateManager(private val context: Context) {
             }
 
             withContext(Dispatchers.Main) {
-                showUpdateDialog(activity, versionInfo)
+                val ui = ui
+                if (ui == null) {
+                    Log.w(TAG, "Update ${versionInfo.versionName} available but no UI attached")
+                    return@withContext
+                }
+                ui.onUpdateAvailable(versionInfo) {
+                    startDownloadAndInstall(activity, versionInfo)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error checking for updates", e)
@@ -109,65 +130,25 @@ class UpdateManager(private val context: Context) {
         }
     }
 
-    private fun showUpdateDialog(activity: Activity, versionInfo: VersionInfo) {
-        val message = buildString {
-            append("A new version (${versionInfo.versionName}) is available.\n\n")
-            append("Current version: ${BuildConfig.VERSION_NAME}\n")
-            if (!versionInfo.releaseNotes.isNullOrBlank()) {
-                append("\nWhat's new:\n${versionInfo.releaseNotes}")
-            }
-        }
-
-        AlertDialog.Builder(activity)
-            .setTitle("Update Available")
-            .setMessage(message)
-            .setPositiveButton("Update Now") { _, _ ->
-                startDownloadAndInstall(activity, versionInfo)
-            }
-            .setNegativeButton("Later", null)
-            .setCancelable(true)
-            .show()
-    }
-
-    @Suppress("DEPRECATION") // ProgressDialog is fine for a simple blocking download UX
     private fun startDownloadAndInstall(activity: Activity, versionInfo: VersionInfo) {
-        val progress = ProgressDialog(activity).apply {
-            setTitle("Downloading update")
-            setMessage("Getting v${versionInfo.versionName}…")
-            setProgressStyle(ProgressDialog.STYLE_HORIZONTAL)
-            max = 100
-            setCancelable(false)
-            show()
-        }
+        ui?.onDownloadProgress(0)
 
         // Download off the UI thread; install back on Main.
         Thread {
             try {
                 val apkFile = downloadApk(versionInfo) { pct ->
-                    activity.runOnUiThread {
-                        if (progress.isShowing) {
-                            progress.progress = pct
-                            progress.setMessage("Getting v${versionInfo.versionName}… $pct%")
-                        }
-                    }
+                    activity.runOnUiThread { ui?.onDownloadProgress(pct) }
                 }
                 activity.runOnUiThread {
-                    if (progress.isShowing) progress.dismiss()
+                    ui?.onInstallStarting()
                     installApk(activity, apkFile)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Download failed", e)
                 activity.runOnUiThread {
-                    if (progress.isShowing) progress.dismiss()
-                    AlertDialog.Builder(activity)
-                        .setTitle("Download Failed")
-                        .setMessage(
-                            "Could not download the update:\n${e.message}\n\n" +
-                                "You can also open this link in Chrome and install manually:\n" +
-                                versionInfo.apkUrl
-                        )
-                        .setPositiveButton("OK", null)
-                        .show()
+                    ui?.onUpdateFailed(
+                        "Could not download the update: ${e.message}"
+                    ) { startDownloadAndInstall(activity, versionInfo) }
                 }
             }
         }.start()
@@ -257,21 +238,14 @@ class UpdateManager(private val context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 !activity.packageManager.canRequestPackageInstalls()
             ) {
-                AlertDialog.Builder(activity)
-                    .setTitle("Allow install")
-                    .setMessage(
-                        "Android needs permission for this app to install updates. " +
-                            "Tap Allow, enable the toggle, then come back and tap Update Now again."
-                    )
-                    .setPositiveButton("Open settings") { _, _ ->
-                        val intent = Intent(
+                ui?.onInstallPermissionNeeded {
+                    activity.startActivity(
+                        Intent(
                             Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                             Uri.parse("package:${activity.packageName}")
                         )
-                        activity.startActivity(intent)
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .show()
+                    )
+                }
                 return
             }
 
@@ -286,19 +260,19 @@ class UpdateManager(private val context: Context) {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
 
-            Toast.makeText(activity, "Opening installer…", Toast.LENGTH_SHORT).show()
             activity.startActivity(installIntent)
+            ui?.onInstallHandedOver()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to install APK", e)
-            AlertDialog.Builder(activity)
-                .setTitle("Installation Failed")
-                .setMessage("Could not install update: ${e.message}")
-                .setPositiveButton("OK", null)
-                .show()
+            ui?.onUpdateFailed("Could not start the install: ${e.message}") {
+                installApk(activity, apkFile)
+            }
         }
     }
 
     fun cleanup() {
-        // No BroadcastReceiver any more — nothing to unregister.
+        // Drop the UI so a finished activity's views aren't held by a download
+        // thread that is still running.
+        ui = null
     }
 }
